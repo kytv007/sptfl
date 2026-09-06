@@ -336,25 +336,37 @@ async def url_handler(event):
     ):
         return
 
+    # Short ID for Telegram callback_data.
+    request_id = uuid.uuid4().hex[:12]
+
+    # Store the URL temporarily.
+    jobs[request_id] = {
+        "type": "pending",
+        "user_id": event.sender_id,
+        "chat_id": event.chat_id,
+        "url": url,
+        "created": time.monotonic(),
+    }
+
     buttons = [
         [
             Button.inline(
                 "🎧 TIDAL",
-                data=f"provider:tidal:{url}".encode()
+                data=f"provider:tidal:{request_id}".encode()
             ),
             Button.inline(
                 "🎵 Qobuz",
-                data=f"provider:qobuz:{url}".encode()
+                data=f"provider:qobuz:{request_id}".encode()
             ),
         ],
         [
             Button.inline(
                 "🔊 Deezer",
-                data=f"provider:deezer:{url}".encode()
+                data=f"provider:deezer:{request_id}".encode()
             ),
             Button.inline(
                 "🛒 Amazon",
-                data=f"provider:amazon:{url}".encode()
+                data=f"provider:amazon:{request_id}".encode()
             ),
         ],
     ]
@@ -363,7 +375,6 @@ async def url_handler(event):
         "Choose a provider:",
         buttons=buttons
     )
-
 
 # ============================================================
 # Provider selection
@@ -374,7 +385,7 @@ async def provider_handler(event):
 
     data = event.data.decode()
 
-    # provider:<provider>:<url>
+    # provider:<provider>:<request_id>
     parts = data.split(":", 2)
 
     if len(parts) != 3:
@@ -384,7 +395,7 @@ async def provider_handler(event):
         )
         return
 
-    _, provider_key, url = parts
+    _, provider_key, request_id = parts
 
     provider = PROVIDERS.get(provider_key)
 
@@ -395,20 +406,36 @@ async def provider_handler(event):
         )
         return
 
-    # Acknowledge button press.
-    await event.answer(
-        f"{provider['name']} selected."
-    )
+    # Retrieve pending request.
+    pending = jobs.get(request_id)
 
-    # Create job.
+    if not pending or pending.get("type") != "pending":
+        await event.answer(
+            "This request has expired.",
+            alert=True
+        )
+        return
+
+    # Security: only the user who sent the URL
+    # can choose the provider.
+    if event.sender_id != pending["user_id"]:
+        await event.answer(
+            "This isn't your request.",
+            alert=True
+        )
+        return
+
+    url = pending["url"]
+
+    # Now create the actual download job.
     job_id = uuid.uuid4().hex
 
     job_dir = DOWNLOAD_ROOT / job_id
 
     job = {
         "job_id": job_id,
-        "user_id": event.sender_id,
-        "chat_id": event.chat_id,
+        "user_id": pending["user_id"],
+        "chat_id": pending["chat_id"],
         "url": url,
         "provider": provider_key,
         "provider_name": provider["name"],
@@ -419,11 +446,17 @@ async def provider_handler(event):
         "message": None,
     }
 
+    # Replace pending request with download job.
+    jobs.pop(request_id, None)
     jobs[job_id] = job
 
     job_dir.mkdir(
         parents=True,
         exist_ok=True
+    )
+
+    await event.answer(
+        f"{provider['name']} selected."
     )
 
     status_message = await event.edit(
@@ -442,11 +475,9 @@ async def provider_handler(event):
 
     job["message"] = status_message
 
-    # Start the download as an independent task.
     asyncio.create_task(
         download_job(job_id)
     )
-
 
 # ============================================================
 # Download worker
