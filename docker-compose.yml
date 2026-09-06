@@ -11,17 +11,16 @@ services:
     env_file:
       - .env
 
-    volumes:
-      - spotiflac_downloads:/app/downloads
-      - spotiflac_config:/home/spotiflac/.spotiflac
-
     environment:
       SPOTIFLAC_REGISTRIES: "https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json"
-      MAX_CONCURRENT_DOWNLOADS: "3"
-      PROGRESS_INTERVAL: "2"
+      DISPLAY: ":99"
+      TS_DEBUG_VISIBLE: "1"
+
+    volumes:
+      - ./data/downloads:/app/downloads
+      - ./data/spotiflac:/home/spotiflac/.spotiflac
+      - ./data/cache:/home/spotiflac/.cache/spotiflac
+
+    shm_size: "1gb"
 
     stop_grace_period: 30s
-
-volumes:
-  spotiflac_downloads:
-  spotiflac_config:
