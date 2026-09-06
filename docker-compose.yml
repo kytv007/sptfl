@@ -5,17 +5,20 @@ services:
       dockerfile: Dockerfile
 
     container_name: spotiflac-telegram-bot
-
     restart: unless-stopped
 
     env_file:
       - .env
 
     volumes:
-      - ./data/downloads:/app/downloads
-      - ./data/spotiflac:/home/spotiflac/.spotiflac
+      - spotiflac_downloads:/app/downloads
+      - spotiflac_config:/home/spotiflac/.spotiflac
 
     environment:
       SPOTIFLAC_REGISTRIES: "https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json"
 
     stop_grace_period: 30s
+
+volumes:
+  spotiflac_downloads:
+  spotiflac_config:
