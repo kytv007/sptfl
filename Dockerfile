@@ -8,4 +8,4 @@ COPY bot.py /app/bot/bot.py
 
 RUN mkdir -p /app/downloads
 
-CMD ["python3", "/app/bot/bot.py"]
+ENTRYPOINT ["python3", "/app/bot/bot.py"]
